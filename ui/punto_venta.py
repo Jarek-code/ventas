@@ -422,15 +422,22 @@ class PantallaVentas(ttk.Frame):
             return
         
         try:
+            # Obtener índices de selección
             cliente_idx = self.combo_clientes.current()
             medio_pago_idx = self.combo_medios_pago.current()
             direccion_idx = self.combo_direcciones.current()
-            
-            # Preparar todas las queries
-            queries = []
-            
-            # 1. Transacción principal
-            queries.append((
+
+            # Validar medio de pago obligatorio
+            if medio_pago_idx == -1:
+                raise ValueError("Selecciona un medio de pago")
+
+            # Obtener ID de cliente si existe
+            id_cliente = None
+            if cliente_idx >= 0:
+                id_cliente = self.clientes[cliente_idx][0]
+
+            # 1. Insertar transacción principal
+            transaccion_query = (
                 """
                 INSERT INTO Transacciones (
                     tipo, fecha, id_cliente, id_medio_pago,
@@ -440,7 +447,7 @@ class PantallaVentas(ttk.Frame):
                 (
                     "venta",
                     datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    self.clientes[cliente_idx][0] if cliente_idx >=0 else None,
+                    id_cliente,
                     self.medios_pago[medio_pago_idx][0],
                     float(self.subtotal_var.get()[1:]),
                     float(self.iva_var.get()[1:]),
@@ -448,14 +455,19 @@ class PantallaVentas(ttk.Frame):
                     "MXN",
                     "completada"
                 )
-            ))
+            )
             
-            # 2. Detalles y movimientos
+            # Ejecutar transacción principal y obtener ID
+            id_transaccion = ejecutar_transaccion([transaccion_query])
+
+            # Preparar queries dependientes del ID de transacción
+            queries = []
+            
+            # 2. Detalles de transacción
             for item in self.carrito:
                 descuento_total = (item["precio"] * item["cantidad"] * 
                                 (self.descuento_global + item["descuento"]))
                 
-                # Detalle transacción
                 queries.append((
                     """
                     INSERT INTO Detalle_transaccion (
@@ -464,7 +476,7 @@ class PantallaVentas(ttk.Frame):
                     ) VALUES (?, ?, ?, ?, ?, ?)
                     """,
                     (
-                        None,  # Se reemplazará con lastrowid
+                        id_transaccion,
                         item["id_producto"],
                         item["cantidad"],
                         item["precio"],
@@ -472,18 +484,10 @@ class PantallaVentas(ttk.Frame):
                         (item["precio"] * item["cantidad"] - descuento_total) * 0.16
                     )
                 ))
-                
-                # Actualizar stock
-                queries.append((
-                    """
-                    UPDATE Productos 
-                    SET stock_actual = stock_actual - ? 
-                    WHERE id_producto = ?
-                    """,
-                    (item["cantidad"], item["id_producto"])
-                ))
-                
-                # Movimiento de inventario
+
+            # 3. Movimientos de inventario
+            ref_cliente = f"cliente {id_cliente}" if id_cliente else "sin cliente"
+            for item in self.carrito:
                 queries.append((
                     """
                     INSERT INTO Movimientos (
@@ -495,41 +499,35 @@ class PantallaVentas(ttk.Frame):
                         datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                         -item["cantidad"],
                         item["id_producto"],
-                        f"Venta {None}"  # Se actualizará después
+                        f"Venta {ref_cliente} - trans {id_transaccion}"
                     )
                 ))
-            
-            # 3. Ejecutar todas las queries en transacción
-            id_transaccion = ejecutar_transaccion(queries)
-            
-            # 4. Actualizar referencias dependientes del ID de transacción
-            self._actualizar_referencias(id_transaccion)
-            
+
+            # 4. Actualizar stock
+            for item in self.carrito:
+                queries.append((
+                    """
+                    UPDATE Productos 
+                    SET stock_actual = stock_actual - ? 
+                    WHERE id_producto = ?
+                    """,
+                    (item["cantidad"], item["id_producto"])
+                ))
+
+            # Ejecutar todas las operaciones restantes
+            ejecutar_transaccion(queries)
+
             # 5. Facturación (si aplica)
             if self.factura_var.get():
-                self._generar_factura(id_transaccion, cliente_idx, direccion_idx)            
-            
+                self._generar_factura(id_transaccion, cliente_idx, direccion_idx)
+
             messagebox.showinfo("Éxito", f"Venta #{id_transaccion} procesada")
             self._limpiar_venta()
-            
+
+        except ValueError as ve:
+            messagebox.showwarning("Validación", str(ve))
         except Exception as e:
             messagebox.showerror("Error", f"Error al procesar venta:\n{str(e)}")
-
-    def _actualizar_referencias(self, id_transaccion):
-        """Actualiza referencias que dependen del ID de transacción"""
-        queries = []
-        for i, item in enumerate(self.carrito, start=1):
-            # Actualizar referencia en Movimientos
-            queries.append((
-                """
-                UPDATE Movimientos 
-                SET referencia = ? 
-                WHERE referencia = 'Venta None' 
-                AND id_producto = ?
-                """,
-                (f"Venta {id_transaccion}", item["id_producto"])
-            ))
-        ejecutar_transaccion(queries)
 
     def _generar_factura(self, id_transaccion, cliente_idx, direccion_idx):
         """Generar registro de factura en la base de datos"""
