@@ -1,11 +1,36 @@
 import sqlite3
+import sys
+import os
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent.parent / "data" / "ventas.db"
+def get_db_path():
+    """Obtiene la ruta correcta de la base de datos según el entorno"""
+    if getattr(sys, 'frozen', False):
+        # Entorno empaquetado (ejecutable)
+        base_path = Path(sys._MEIPASS)
+    else:
+        # Entorno de desarrollo
+        base_path = Path(__file__).parent.parent
+    
+    db_path = base_path / "data" / "ventas.db"
+    
+    # Si está empaquetado y necesitamos escribir, copiamos a directorio de usuario
+    if getattr(sys, 'frozen', False) and not db_path.exists():
+        user_data_dir = Path.home() / "AppData" / "Local" / "ventas"
+        user_data_dir.mkdir(parents=True, exist_ok=True)
+        db_path = user_data_dir / "ventas.db"
+        
+        # Copiar la base de datos original si no existe
+        if not db_path.exists():
+            original_db = base_path / "data" / "ventas.db"
+            db_path.write_bytes(original_db.read_bytes())
+    
+    return db_path
 
 def connect_db():
     """Establece conexión con la base de datos"""
-    conn = sqlite3.connect(DB_PATH)
+    db_path = get_db_path()
+    conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row 
     return conn
 
@@ -33,13 +58,6 @@ def ejecutar_transaccion(queries):
         
     Returns:
         int: Último rowid de la última operación INSERT
-        
-    Ejemplo:
-        queries = [
-            ("INSERT INTO tabla1 ...", (param1,)),
-            ("UPDATE tabla2 SET ...", (param2,))
-        ]
-        id = ejecutar_transaccion(queries)
     """
     conn = None
     try:
