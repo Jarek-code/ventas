@@ -2,6 +2,8 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
 from db.db import ejecutar_query, obtener_datos
+from ui.dialogos.dialogo_proveedor import DialogoProveedor
+from ui.dialogos.dialogo_categoria import DialogoCategoria
 
 class DialogoProducto:
     """
@@ -124,10 +126,48 @@ class DialogoProducto:
         combo.current(0)
         return combo
 
+    def _actualizar_combobox(self, campo, datos):
+        """Actualiza los valores de un combobox específico"""
+        combo = self.entries[campo]
+        current_value = combo.get()
+        
+        # Generar nuevos valores
+        nuevos_valores = ["Seleccionar..."] + [item[1] for item in datos]
+        combo['values'] = nuevos_valores
+        
+        # Restaurar selección previa si existe
+        if current_value in nuevos_valores:
+            combo.set(current_value)
+        else:
+            combo.current(0)
+
     def _crear_botones(self, padre, ultima_fila):
-        """Crea la sección de botones"""
+        """Crea la sección de botones con nuevas opciones"""
         btn_frame = ttk.Frame(padre)
-        btn_frame.grid(row=ultima_fila * 2 + 2, column=0, columnspan=2, pady=15)
+        btn_frame.grid(row=ultima_fila * 2 + 2, column=0, columnspan=2, pady=15, sticky=tk.EW)
+        
+        # Botones de adición rápida (izquierda)
+        ttk.Button(
+            btn_frame,
+            text="➕ Proveedor",
+            style="Secondary.TButton",
+            command=self._abrir_dialogo_proveedor
+        ).pack(side=tk.LEFT, padx=2)
+        
+        ttk.Button(
+            btn_frame,
+            text="➕ Categoría",
+            style="Secondary.TButton",
+            command=self._abrir_dialogo_categoria
+        ).pack(side=tk.LEFT, padx=2)
+        
+        # Botones principales (derecha)
+        ttk.Button(
+            btn_frame,
+            text="Cancelar",
+            style="Secondary.TButton",
+            command=self._cerrar_dialogo
+        ).pack(side=tk.RIGHT, padx=5)
         
         ttk.Button(
             btn_frame,
@@ -135,6 +175,30 @@ class DialogoProducto:
             style="Primary.TButton",
             command=self._validar_formulario
         ).pack(side=tk.RIGHT, padx=5)
+
+    def _abrir_dialogo_proveedor(self):
+        """Abre diálogo para nuevo proveedor y actualiza datos"""
+        DialogoProveedor(
+            parent=self.dialogo,
+            callback_actualizar=self._actualizar_lista_proveedores
+        )
+    
+    def _abrir_dialogo_categoria(self):
+        """Abre diálogo para nueva categoría y actualiza datos"""
+        DialogoCategoria(
+            parent=self.dialogo,
+            callback_actualizar=self._actualizar_lista_categorias
+        )
+
+    def _actualizar_lista_proveedores(self):
+        """Recarga proveedores y actualiza combobox"""
+        self._cargar_datos_soporte()
+        self._actualizar_combobox('proveedor', self.proveedores)
+
+    def _actualizar_lista_categorias(self):
+        """Recarga categorías y actualiza combobox"""
+        self._cargar_datos_soporte()
+        self._actualizar_combobox('categoria', self.categorias)
 
     def _validar_formulario(self):
         """

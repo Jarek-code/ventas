@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-from db.db import ejecutar_query, obtener_datos
+from db.db import ejecutar_query, obtener_datos, ejecutar_transaccion
 from ui.dialogos.dialogo_producto import DialogoProducto
 
 class DialogoMovimiento:
@@ -229,30 +229,39 @@ class DialogoMovimiento:
             cantidad_ajustada = -cantidad if tipo in ['salida', 'transferencia'] else cantidad
             
             # Transacción en base de datos
-            with ejecutar_query() as cursor:
-                # Insertar movimiento
-                cursor.execute(
+            queries = [
+                (
                     """INSERT INTO Movimientos (
                         tipo, fecha, cantidad, id_producto, referencia
                     ) VALUES (?, datetime('now'), ?, ?, ?)""",
                     (tipo, cantidad_ajustada, id_producto, referencia)
-                )
-                
-                # Actualizar stock
-                cursor.execute(
+                ),
+                (
                     """UPDATE Productos 
                     SET stock_actual = stock_actual + ? 
                     WHERE id_producto = ?""",
                     (cantidad_ajustada, id_producto)
                 )
+            ]
             
-            messagebox.showinfo("Éxito", "Movimiento registrado correctamente", parent=self.dialogo)
+            # Ejecutar transacción atómica
+            ejecutar_transaccion(queries)
+                
+            messagebox.showinfo(
+                "Éxito", 
+                "Movimiento registrado correctamente", 
+                parent=self.dialogo
+            )
             self.callback_actualizar()
             self._cerrar_dialogo()
             
         except Exception as e:
-            messagebox.showerror("Error", f"Error al guardar movimiento:\n{str(e)}", parent=self.dialogo)
-
+            messagebox.showerror(
+                "Error", 
+                f"Error al guardar movimiento:\n{str(e)}",  # Corregir paréntesis si es necesario
+                parent=self.dialogo
+            )
+    
     def _cerrar_dialogo(self):
         """Cierra la ventana y libera recursos"""
         self.dialogo.destroy()
