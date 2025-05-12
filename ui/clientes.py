@@ -5,6 +5,7 @@ from db.db import obtener_datos, ejecutar_query
 from ui.styles import AppTheme
 from utils.helpers import get_inactive_color  
 from ui.dialogos.dialogo_clientes import DialogoCliente 
+from ui.dialogos.dialogo_direccion import DialogoDireccion 
 
 class PantallaClientes(ttk.Frame):
     COLUMNAS = {
@@ -80,6 +81,13 @@ class PantallaClientes(ttk.Frame):
             text="➕ Registrar Cliente",
             style="Primary.TButton",
             command=lambda: DialogoCliente(self, self._cargar_datos)
+        ).pack(side=tk.RIGHT, padx=5)
+
+        ttk.Button(
+            self.controles_frame,
+            text="🏠 Agregar Dirección",
+            style="Secondary.TButton",
+            command=lambda: DialogoDireccion(self, self._cargar_datos)
         ).pack(side=tk.RIGHT, padx=5)
 
     def _configurar_tabla(self):
