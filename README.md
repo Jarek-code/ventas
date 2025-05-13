@@ -1,6 +1,6 @@
-=======================================
+---
 Sistema de Ventas - Proyecto Académico   
-=======================================
+---
 
 Descripción:
 ------------
@@ -180,5 +180,3 @@ Requisitos funcionales por pantalla:
     Botón para ver XML o descargar PDF (si existen).
     Mostrar resumen: subtotal, impuestos, total.  
 
-
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Jarek-code/ventas)
